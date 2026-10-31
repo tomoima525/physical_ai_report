@@ -1,0 +1,46 @@
+import importlib.util
+import json
+import tempfile
+import unittest
+from pathlib import Path
+from pickup.core import JOINTS, ordered, held_above, validate_frame
+
+spec = importlib.util.spec_from_file_location('converter', 'scripts/pickup_dataset.py')
+converter = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(converter)
+
+class ContractTests(unittest.TestCase):
+    def frame(self, t=0):
+        return {'timestamp': t,'joint_names': list(JOINTS),'object_frame':'crane_plus_base',
+            'observation.state':[0.]*5,'observation.environment_state':[.1,0.,.02],'action':[0.]*5}
+
+    def test_shuffled_joint_order(self):
+        self.assertEqual(ordered(list(reversed(JOINTS)), [4,3,2,1,0]), [0,1,2,3,4])
+        with self.assertRaises(KeyError):
+            ordered(['wrong'], [0.])
+
+    def test_physical_hold_requires_full_second(self):
+        self.assertFalse(held_above([.1]*19, .02))
+        self.assertTrue(held_above([.1]*20, .02))
+        self.assertFalse(held_above([.1]*19+[.02], .02))
+
+    def test_invalid_data(self):
+        frame = self.frame()
+        frame['action'][0] = float('nan')
+        with self.assertRaises(ValueError):
+            validate_frame(frame)
+
+    def test_failed_and_irregular_episodes_excluded(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp)
+            (path/'result.json').write_text(json.dumps({'success':False,'fps':20}))
+            self.assertEqual(converter.read_episode(path), [])
+            (path/'result.json').write_text(json.dumps({'success':True,'fps':20}))
+            (path/'frames.jsonl').write_text('\n'.join(json.dumps(self.frame(t)) for t in [0,.05,.1]))
+            self.assertEqual(len(converter.read_episode(path)), 3)
+            (path/'frames.jsonl').write_text('\n'.join(json.dumps(self.frame(t)) for t in [0,.2]))
+            with self.assertRaises(ValueError):
+                converter.read_episode(path)
+
+if __name__ == '__main__':
+    unittest.main()

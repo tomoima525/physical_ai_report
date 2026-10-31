@@ -28,7 +28,9 @@ Usage:
 """
 
 
+import sys
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import importlib.util
 import wandb
 import torch
@@ -114,6 +116,9 @@ def main():
         pin_memory=False,
         drop_last=True,
     )
+
+    if len(dataloader) == 0:
+        raise ValueError("Dataset smaller than batch_size; collect more data or reduce batch_size")
 
     step = 0
     done = False

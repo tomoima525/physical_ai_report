@@ -1,11 +1,11 @@
-dataset_root: "/home/ubuntu/dataset/lerobot_dataset/crane_plus_pekori"
-repo_id: "crane_plus_pekori"
-output_directory: "/home/ubuntu/checkpoints/train/crane_plus_pekori_act"
+dataset_root: "data/lerobot/pickup"
+repo_id: "crane_plus_pickup"
+output_directory: "checkpoints/pickup_act"
 config_path: "configs/crane_features.py"
 
 device: "cpu"
-training_steps: 200
-log_freq: 1
+training_steps: 10000
+log_freq: 100
 num_workers: 2
 batch_size: 2
 chunk_size: 16
@@ -14,4 +14,4 @@ learning_rate: 0.0001
 delta_timestamps:
   observation.environment_state: [0.0]
   observation.state: [0.0]
-  action: [-0.1, 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4]
+  action: [0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75]
