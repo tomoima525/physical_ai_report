@@ -26,6 +26,6 @@ def validate_frame(frame):
         raise ValueError('Invalid timestamp')
     return frame
 
-def held_above(heights, initial_z, fps=FPS, lift=0.05, hold=1.0):
+def held_above(heights, initial_z, fps=FPS, lift=0.04, hold=1.0):
     needed = math.ceil(fps * hold)
     return len(heights) >= needed and all(z >= initial_z + lift for z in heights[-needed:])

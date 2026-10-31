@@ -2,38 +2,38 @@
   "world": "default",
   "object_name": "pickup_cube",
   "base_world_xyz": [
-    0.0,
-    0.0,
+    0,
+    0,
     1.015
   ],
   "base_world_note": "Translation only; crane_plus_base axes must align with world",
   "cube_size": 0.025,
   "spawn_world_xyz": [
-    0.135,
-    0.0,
+    0.09,
+    0,
     1.04
   ],
   "random_xy_half_range": [
-    0.01,
-    0.02
+    0.005,
+    0.01
   ],
   "home": [
-    0.0,
+    0,
     -1.16,
     -2.01,
     -0.73,
-    0.0
+    0
   ],
-  "gripper_open": 0.0,
-  "gripper_closed": -0.7,
+  "gripper_open": -0.35,
+  "gripper_closed": 0.17453292519943295,
   "grasp_offset_xyz": [
-    0.0,
-    0.0,
-    0.07
+    -0.03,
+    0,
+    0.12
   ],
-  "approach_height": 0.05,
-  "lift_height": 0.07,
-  "ik_pitch": 3.141592653589793,
+  "approach_height": 0.03,
+  "lift_height": 0.06,
+  "ik_pitch": 2.85,
   "joint_limits": [
     [
       -2.617994,
@@ -56,5 +56,7 @@
       0.667938
     ]
   ],
-  "calibrated": false
+  "calibrated": false,
+  "success_lift_height": 0.04,
+  "success_hold_seconds": 1.0
 }

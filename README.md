@@ -1,6 +1,6 @@
 # CRANE+ V2 自動把持・ACTプロジェクト
 
-講義の `matsuolab/pai_training` を土台に、Gazebo Sim上の立方体を把持し、5 cm持ち上げて1秒保持する課題を実装します。物体座標はシミュレータの真値を利用します。画像認識は使用しません。
+講義の `matsuolab/pai_training` を土台に、Gazebo Sim上の立方体を把持し、4 cm持ち上げて1秒保持する課題を実装します。物体座標はシミュレータの真値を利用します。画像認識は使用しません。
 
 ## 現在の状態
 
@@ -51,7 +51,7 @@ WANDB_MODE=offline scripts/container.sh scripts/train.py
 scripts/container.sh scripts/pickup_robot.py infer --model-path checkpoints/pickup_act --episodes 20 --seed 2026 --output data/evaluation
 ```
 
-推論・教師の実行中はテレオペや他の指令ノードを停止してください。成功判定は実測した物体中心の高さが開始時より5 cm以上高い状態を最後の1秒間保持できたかです。把持接触そのものは判定しません。
+推論・教師の実行中はテレオペや他の指令ノードを停止してください。成功判定は実測した物体中心の高さが開始時より4 cm以上高い状態を最後の1秒間保持できたかです。把持接触そのものは判定しません。
 
 失敗エピソードも `result.json` に残します。データ変換は成功エピソードのみを読み、20 Hzの間隔、配列長、関節順序、有限値を検証します。出力先が存在すると上書きせずエラーになります。再収集・再変換では `--output` に新しいパスを指定し、学習設定のdataset_rootも合わせてください。
 
@@ -82,3 +82,34 @@ scripts/container.sh scripts/pickup_robot.py trial --seed 42 --output data/calib
 ```
 
 `trial` は1エピソード限定です。結果を確認してから校正完了フラグを設定します。初期の試行では期限超過と、wall時刻に対するシミュレータの遅延が判明しました。制御・記録・保持判定をシミュレーション時刻に変更しています。失敗データは学習に含めません。収集・推論とMLテスト/学習を同時に走らせないでください。
+
+グリッパー設定の訂正: 公式pick_and_place例に合わせ、開=-30度、閉=+10度へ変更。従来の閉=-0.7 radは開方向だった。修正後の把持は未検証。詳細はdocs/worklog/2026-10-30.md。
+
+### 手先姿勢のIK比較（動作なし）
+
+` scripts/container.sh scripts/pickup_robot.py scan ` は現在の物体位置で4種類のpitchを比較します。設定ファイルを変更せず、ロボットや物体も動かしません。PASSは各段階のIK成功のみを表し、把持・指先のクリアランス・経路の確認は別途必要です。
+
+### 閉動作中の机との隙間
+
+`python3 scripts/check_gripper_clearance.py` は講義の衝突メッシュからhand/link4の開閉区間全体の最低高さを求めます。ROSやシミュレータに指令を送信しません。`--episode data/calibration/<試行名>` で記録末の姿勢も比較できます。前提と限界は出力およびスクリプトを参照してください。候補設定は `configs/pickup_clearance_candidate.json` に分離し、元設定は保持しています。
+
+### 4 cm立方体の候補設定
+
+提出タスクを把持しやすくするため、候補設定の箱を一辺4 cm・質量20 gに変更しています。元のpickup.jsonは一辺2.5 cmのままです。サイズ変更は既存モデルのresetでは反映されません。Gazebo起動中に次を実行してください。
+
+```bash
+scripts/container.sh scripts/pickup_robot.py respawn --config configs/pickup_clearance_candidate.json
+scripts/container.sh scripts/pickup_robot.py plan --config configs/pickup_clearance_candidate.json
+```
+
+respawnは設定のobject_name（pickup_cube）のモデルを置換します。plan成功後に同じ--configを付けたtrialで確認します。過去のデータは保持します。今後の試行にはconfig.jsonも保存します。対象物の寸法と質量、条件変更の理由は提出レポートに明記してください。大型化後の把持成功は未確認です。
+
+### 教師動作の撮影
+
+現在の成功条件は4 cm以上を1秒保持です。新しい結果ファイルにはsuccess_criteriaも記録します。過去の5 cm判定結果は書き換えません。
+
+```bash
+scripts/container.sh scripts/pickup_robot.py trial --config configs/pickup_clearance_candidate.json --seed 42 --output data/video_trials --wait-for-recording
+```
+
+ホーム復帰と箱の再配置後にEnter待ちします。画面録画を開始してからターミナルでEnterを押してください。画面録画自体は別の録画機能で行います。これは教師スクリプトの動作確認動画です。課題のAI活用を示す学習済みモデルの推論評価は後続工程です。

@@ -7,4 +7,4 @@ features = {
 robot_type = "crane_plus"
 repo_id = "crane_plus_pickup"
 root = "data/lerobot/pickup"
-task_name = "Lift the cube by 5 cm and hold for 1 second"
+task_name = "Lift the cube by 4 cm and hold for 1 second"

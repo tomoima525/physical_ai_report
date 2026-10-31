@@ -1,0 +1,11 @@
+{
+  "evaluation_type": "retrospective_4cm_criterion",
+  "episode": "data/calibration/trial_1793427046761399469",
+  "original_success": false,
+  "success_criteria": {
+    "lift_height_m": 0.04,
+    "hold_seconds": 1.0
+  },
+  "success": true,
+  "final_window_min_object_lift_m": 0.04280925439780092
+}

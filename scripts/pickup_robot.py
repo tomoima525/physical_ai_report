@@ -11,6 +11,7 @@ import threading
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from pickup.core import FPS, JOINTS, held_above, ordered, validate_frame
+from pickup.models import cube_sdf
 import rclpy
 from rclpy.node import Node
 from rclpy.parameter import Parameter
@@ -112,19 +113,22 @@ class Robot(Node):
         js = response.solution.joint_state
         return ordered(js.name, js.position, JOINTS[:4]) + [gripper]
 
-    def phase(self, target, seconds, stream=None):
+    def phase(self, target, seconds, stream=None, label="move", ramp=True):
         self.ready()
         start = list(self.state)
         frames = []
         deadline = self.sim_now()
-        for i in range(round(seconds*FPS)):
+        minimum_steps = round(seconds*FPS)
+        extra_steps = round(self.cfg.get('arm_settle_timeout', 5.0)*FPS)
+        tolerance = self.cfg.get('arm_arrival_tolerance', 0.04)
+        for i in range(minimum_steps + extra_steps):
             self.ready()
-            alpha = min(1.0, (i+1)/(seconds*FPS))
+            alpha = min(1.0, (i+1)/(seconds*FPS)) if ramp else 1.0
             alpha = alpha*alpha*(3-2*alpha)
             action = [a+(b-a)*alpha for a,b in zip(start,target)]
             timestamp = self.sim_now()
             frame = validate_frame({'timestamp': timestamp, 'joint_names': list(JOINTS),
-                'object_frame': 'crane_plus_base', 'observation.state': list(self.state),
+                'object_frame': 'crane_plus_base', 'phase': label, 'observation.state': list(self.state),
                 'observation.environment_state': list(self.xyz), 'action': action})
             # Snapshot observation before issuing the corresponding command.
             self.publish(action)
@@ -135,7 +139,14 @@ class Robot(Node):
             if self.sim_now() > deadline + 0.015:
                 raise RuntimeError('Missed 20 Hz deadline; episode invalid')
             self.wait_sim_until(deadline)
-        return frames
+            self.ready()
+            errors = [abs(a-b) for a,b in zip(self.state[:4],target[:4])]
+            # Gripper contact can prevent reaching its target; do not demand full closure.
+            if i+1 >= minimum_steps and max(errors) <= tolerance:
+                print(f'{label}: arm arrived; hand={self.state[4]:.3f}, target={target[4]:.3f}', flush=True)
+                return frames
+        raise RuntimeError(f'{label}: arm did not arrive; errors_rad={errors}, '
+                           f'hand={self.state[4]:.3f}, target_hand={target[4]:.3f}')
 
 
 def ign_service(world, service, request_type, request):
@@ -147,30 +158,30 @@ def ign_service(world, service, request_type, request):
 
 
 def spawn(cfg):
-    size = cfg['cube_size']
-    xyz = ' '.join(str(v) for v in cfg['spawn_world_xyz'])
-    sdf = f'''<sdf version="1.6"><model name="{cfg['object_name']}"><pose>{xyz} 0 0 0</pose>
-<link name="body"><inertial><mass>0.02</mass><inertia><ixx>0.0000021</ixx><iyy>0.0000021</iyy><izz>0.0000021</izz></inertia></inertial>
-<collision name="collision"><geometry><box><size>{size} {size} {size}</size></box></geometry>
-<surface><friction><ode><mu>1.5</mu><mu2>1.5</mu2></ode></friction></surface></collision>
-<visual name="visual"><geometry><box><size>{size} {size} {size}</size></box></geometry><material><diffuse>0.9 0.2 0.1 1</diffuse></material></visual>
-</link></model></sdf>'''
+    sdf = cube_sdf(cfg)
     ign_service(cfg['world'], 'create', 'ignition.msgs.EntityFactory',
         'sdf: '+json.dumps(sdf)+' allow_renaming: false')
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('mode', choices=['diagnose','spawn','reset','plan','trial','collect','infer'])
+    parser.add_argument('mode', choices=['diagnose','spawn','respawn','reset','plan','scan','trial','collect','infer'])
     parser.add_argument('--config', default='configs/pickup.json')
     parser.add_argument('--episodes', type=int, default=1)
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--output', default='data/episodes')
     parser.add_argument('--model-path')
     parser.add_argument('--seconds', type=float, default=15)
+    parser.add_argument('--wait-for-recording', action='store_true',
+        help='After home/object reset, wait for Enter before starting the episode')
     args = parser.parse_args()
     cfg = json.loads(Path(args.config).read_text())
-    if args.mode == 'spawn':
+    if args.mode in ('spawn', 'respawn'):
+        if args.mode == 'respawn':
+            print(f'Replacing Gazebo model {cfg["object_name"]} with cube_size={cfg["cube_size"]} m', flush=True)
+            ign_service(cfg['world'], 'remove', 'ignition.msgs.Entity',
+                'name: '+json.dumps(cfg['object_name'])+' type: MODEL')
+            time.sleep(0.5)
         spawn(cfg)
         return
     if args.mode == 'reset':
@@ -178,6 +189,8 @@ def main():
         ign_service(cfg['world'], 'set_pose', 'ignition.msgs.Pose',
             f'name: "{cfg["object_name"]}" position {{x: {x} y: {y} z: {z}}} orientation {{w: 1}}')
         return
+    if args.wait_for_recording and args.episodes != 1:
+        parser.error('--wait-for-recording requires --episodes 1')
     if args.mode == 'trial' and args.episodes != 1:
         parser.error('trial is limited to one calibration episode')
     rclpy.init()
@@ -193,6 +206,38 @@ def main():
                 'object_xyz_base': node.xyz, 'sim_time': node.sim_now(), 'ik_available': node.ik.wait_for_service(timeout_sec=2)}, indent=2))
             if node.state is None:
                 raise RuntimeError('Joint-state connection unavailable')
+            return
+        if args.mode == 'scan':
+            node.ready()
+            grasp = [a+b for a,b in zip(node.xyz,cfg['grasp_offset_xyz'])]
+            original_pitch = cfg['ik_pitch']
+            print('IK comparison only: no joint commands, no configuration changes.', flush=True)
+            print(f'object_xyz={node.xyz}; grasp_xyz={grasp}; lift={cfg["lift_height"]} m', flush=True)
+            print('PASS means endpoint IK only; finger clearance, grasp alignment and paths are unverified.', flush=True)
+            try:
+                for pitch in dict.fromkeys([original_pitch, 3.05, 2.95, 2.85]):
+                    cfg['ik_pitch'] = pitch
+                    seed = list(node.state)
+                    passed = True
+                    print(f'\npitch={pitch:.6f} rad ({math.degrees(pitch):.2f} deg)', flush=True)
+                    for label, dz, grip in [('approach',cfg['approach_height'],cfg['gripper_open']),
+                                           ('grasp',0,cfg['gripper_open']),
+                                           ('close',0,cfg['gripper_closed']),
+                                           ('lift',cfg['lift_height'],cfg['gripper_closed'])]:
+                        target = [*grasp[:2],grasp[2]+dz]
+                        try:
+                            seed = node.solve(target,seed,grip)
+                            margins = [min(q-lo,hi-q) for q,(lo,hi) in zip(seed,cfg['joint_limits'])]
+                            if min(margins) < 0:
+                                raise ValueError('Configured joint limits exceeded')
+                            print(f'  {label}: OK; min_limit_margin={min(margins):.4f} rad; joints={seed}', flush=True)
+                        except (RuntimeError, ValueError, KeyError) as error:
+                            passed = False
+                            print(f'  {label}: FAIL; {error}', flush=True)
+                            break
+                    print('  result: '+('PASS' if passed else 'FAIL'), flush=True)
+            finally:
+                cfg['ik_pitch'] = original_pitch
             return
         if args.mode == 'plan':
             node.ready()
@@ -214,7 +259,7 @@ def main():
             from lerobot.common.policies.act.modeling_act import ACTPolicy
             policy = ACTPolicy.from_pretrained(args.model_path).to('cpu').eval()
         for episode in range(args.episodes):
-            node.phase(cfg['home'], 3)
+            node.phase(cfg['home'], 3, label='home')
             position = list(cfg['spawn_world_xyz'])
             for i in range(2):
                 position[i] += rng.uniform(-cfg['random_xy_half_range'][i],cfg['random_xy_half_range'][i])
@@ -222,9 +267,14 @@ def main():
                 f'name: "{cfg["object_name"]}" position {{x: {position[0]} y: {position[1]} z: {position[2]}}} orientation {{w: 1}}')
             node.wait(1)
             node.ready()
+            if args.wait_for_recording:
+                input('Home and cube reset complete. Start screen recording, then press Enter to begin: ')
+                node.wait(0.5)
+                node.ready()
             initial = list(node.xyz)
             path = Path(args.output) / f'{args.mode}_{time.time_ns()}'
             path.mkdir(parents=True, exist_ok=False)
+            (path/'config.json').write_text(json.dumps(cfg,indent=2)+'\n')
             frames = []
             with (path/'frames.jsonl').open('w') as stream:
                 try:
@@ -239,9 +289,13 @@ def main():
                                             (grasp,cfg['gripper_closed']), (lift,cfg['gripper_closed'])]:
                             seed = node.solve(point,seed,grip)
                             targets.append(seed)
-                        for target, seconds in zip(targets,[2,2,1,2]):
-                            frames.extend(node.phase(target,seconds,stream))
-                        frames.extend(node.phase(targets[-1],1.5,stream))
+                        for label, target, seconds in zip(['approach','grasp','close','lift'], targets,[2,2,6,2]):
+                            frames.extend(node.phase(target,seconds,stream,label=label))
+                            if label == 'close':
+                                # Keep the final target fixed instead of starting another ramp.
+                                frames.extend(node.phase(target, cfg.get('close_settle_seconds', 3.0),
+                                    stream, label='close_settle', ramp=False))
+                        frames.extend(node.phase(targets[-1],1.5,stream,label="hold"))
                     else:
                         policy.reset()
                         deadline = node.sim_now()
@@ -259,8 +313,15 @@ def main():
                             if node.sim_now() > deadline+0.015:
                                 raise RuntimeError('Inference missed 20 Hz deadline')
                             node.wait_sim_until(deadline)
-                    success = held_above([f['observation.environment_state'][2] for f in frames],initial[2])
-                    result = {'success':success,'fps':FPS,'initial_xyz':initial,'seed':args.seed,'mode':args.mode}
+                    heights = [f['observation.environment_state'][2] for f in frames]
+                    lift_threshold = cfg.get('success_lift_height', 0.04)
+                    hold_seconds = cfg.get('success_hold_seconds', 1.0)
+                    success = held_above(heights, initial[2], lift=lift_threshold, hold=hold_seconds)
+                    tail = heights[-math.ceil(FPS*hold_seconds):]
+                    result = {'success':success,'fps':FPS,'initial_xyz':initial,'seed':args.seed,'mode':args.mode,
+                        'success_criteria':{'lift_height_m':lift_threshold,'hold_seconds':hold_seconds},
+                        'max_object_lift_m':max(heights)-initial[2],
+                        'final_window_min_object_lift_m':min(tail)-initial[2]}
                 except Exception as error:
                     result = {'success':False,'fps':FPS,'error':str(error),'mode':args.mode}
                     (path/'result.json').write_text(json.dumps(result,indent=2))

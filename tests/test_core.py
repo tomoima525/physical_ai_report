@@ -24,6 +24,11 @@ class ContractTests(unittest.TestCase):
         self.assertTrue(held_above([.1]*20, .02))
         self.assertFalse(held_above([.1]*19+[.02], .02))
 
+    def test_four_cm_threshold_and_explicit_legacy_five_cm(self):
+        self.assertTrue(held_above([.061]*20, .02))
+        self.assertFalse(held_above([.059]*20, .02))
+        self.assertFalse(held_above([.061]*20, .02, lift=.05))
+
     def test_invalid_data(self):
         frame = self.frame()
         frame['action'][0] = float('nan')

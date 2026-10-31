@@ -39,7 +39,7 @@ def main():
     for episode in episodes:
         for row in episode:
             dataset.add_frame({**{k: np.asarray(row[k], dtype=np.float32) for k in features},
-                               'task': 'Lift the cube by 5 cm and hold for 1 second'})
+                               'task': 'Lift the cube by 4 cm and hold for 1 second'})
         dataset.save_episode()
     print(f'Saved {len(episodes)} episodes to {dataset.root}')
 
