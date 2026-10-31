@@ -1,0 +1,8 @@
+{
+  "source": "data/inference_tests/infer_1793488946393042109",
+  "seed": 42,
+  "success_recomputed": true,
+  "model_hash_verified": true,
+  "max_lift_m": 0.04809708957830705,
+  "final_window_min_lift_m": 0.04808710277417072
+}

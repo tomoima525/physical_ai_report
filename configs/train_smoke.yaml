@@ -1,0 +1,30 @@
+dataset_root: "data/lerobot/pickup"
+repo_id: "crane_plus_pickup"
+output_directory: "checkpoints/pickup_act_smoke"
+config_path: "configs/crane_features.py"
+
+device: "cpu"
+training_steps: 100
+log_freq: 25
+num_workers: 0
+batch_size: 8
+chunk_size: 16
+n_action_steps: 1
+learning_rate: 0.0001
+delta_timestamps:
+  observation.environment_state: [0.0]
+  observation.state: [0.0]
+  action: [0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75]
+
+split_path: "configs/pickup_split.json"
+seed: 20261031
+torch_num_threads: 2
+eval_freq: 25
+purpose: "pipeline_smoke_test_not_final_policy"
+model:
+  dim_model: 64
+  n_heads: 4
+  dim_feedforward: 128
+  n_encoder_layers: 1
+  n_decoder_layers: 1
+  n_vae_encoder_layers: 1

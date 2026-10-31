@@ -1,0 +1,43 @@
+{
+  "validated": true,
+  "training_executed": false,
+  "checkpoint_created": false,
+  "split_file": "configs/pickup_split.json",
+  "train_episodes": [
+    0,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "validation_episodes": [
+    1,
+    8
+  ],
+  "train_frames": 2559,
+  "validation_frames": 732,
+  "normalization": "aggregate only selected training episode statistics",
+  "sampling": "Subset of full LeRobotDataset, preserving original episode boundaries",
+  "prepared_batch_shapes": {
+    "observation.state": [
+      8,
+      5
+    ],
+    "observation.environment_state": [
+      8,
+      3
+    ],
+    "action": [
+      8,
+      16,
+      5
+    ]
+  },
+  "smoke_config": "configs/train_smoke.yaml",
+  "smoke_training_steps": 100,
+  "smoke_output": "checkpoints/pickup_act_smoke",
+  "validation_metric": "first-action MAE [rad] without target-action input",
+  "validation_purpose": "offline action prediction; not simulation grasp success"
+}

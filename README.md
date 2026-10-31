@@ -133,3 +133,42 @@ scripts/container.sh scripts/verify_pickup_dataset.py
 ```
 
 元記録のハッシュと全フレームの一致、メタデータ、エピソード境界、LeRobotの学習用バッチ形状を検証します。変換後の時刻は、元の間隔を検証した上で20 Hzのグリッドへ再構成されます。初回データは検証済みで、詳細はdocs/reviews/2026-10-31-converted-dataset.jsonです。まだ学習しておらず、現状のtrain splitは全9件のため、本学習前にエピソード単位の検証データ分離を決めます。
+
+### ACTの短時間学習
+
+初回データはconfigs/pickup_split.jsonで学習7エピソード・検証2エピソードに分けています。正規化統計は学習用だけから計算します。元データセットのエピソード境界を保ち、同じエピソードのフレームが学習と検証の両方に入らない構成です。分割は初回9件の変換manifestに紐付くため、追加収集で再変換した場合は分割を再作成・確認します。
+
+```bash
+# 読み込みと分割の確認のみ（学習しません）
+scripts/container.sh scripts/train.py --config configs/train_smoke.yaml --validate-only
+# CPU上の小型ACTで100ステップの動作確認
+scripts/container.sh scripts/train.py --config configs/train_smoke.yaml
+```
+
+出力先はcheckpoints/pickup_act_smoke。run_config.jsonに設定と分割、metrics.jsonlに学習損失と検証の最初の行動のMAE[rad]、training_summary.jsonに完了ステップ数と保存モデル再読み込みの結果を保存します。検証時には正解行動をモデルに入力しません。検証MAEはシミュレーションの把持成功率ではありません。この小型・短時間モデルは学習経路の確認用です。既存出力先は上書きしないので、再実行時は設定のoutput_directoryを新しい名前に変更してください。
+
+### 1,000ステップの比較学習
+
+100ステップのモデルは残し、同じ小型構成・分割・seedで初期状態から1,000ステップを学習します。前回checkpointからの再開ではありません。
+
+```bash
+scripts/container.sh scripts/train.py --config configs/train_1000.yaml
+```
+
+出力先はcheckpoints/pickup_act_1000。前回と同じ25ステップ周期で評価し、完了後に保存モデルの検証MAEと関節制限超過を比較します。
+
+### 学習済みモデルの単発推論
+
+1,000ステップモデルは検証用732観測のオフライン評価で関節制限超過0件。次はシミュレーション内の閉ループ動作を確認します。
+
+```bash
+scripts/container.sh scripts/pickup_robot.py infer --model-path checkpoints/pickup_act_1000 --seed 42 --seconds 25 --output data/inference_tests
+```
+
+ホーム復帰・箱の再配置後は、教師スクリプトのIK段階を使わずモデルから指令を生成します。既定CPUスレッド数は2。モデル読み込み後に観測を更新・推論をウォームアップします。試行にはpolicy_info.json（モデルのSHA-256など）を保存し、フレームと結果に推論時間を記録します。時間はsim時刻で25秒のため、wall時刻の所要時間はシミュレータ速度に依存します。推論中は教師/テレオペを同時に動かさないでください。モデルの閉ループ把持成功は未確認です。
+
+### 推論時の一時的な遅延
+
+目標周期は20 Hzです。締切を15 ms超過した単発の遅れは記録して次周期を現在時刻から再開します。100 ms超の締切遅延または3回連続超過では停止します（いずれもsim時刻）。追い付きのために指令を連続送信しません。従来の厳密な停止を使う場合はinferに--strict-timingを指定します。result.jsonのtimingで実測fpsと遅延を確認してください。学習データの時刻検査は緩めていません。
+
+保持判定は実測のシミュレーション時刻に基づく4 cm以上・1秒です。観測間隔が変わっても20フレームを1秒とみなさず、保持区間内に200 ms超の観測欠落がある場合は成功にしません。

@@ -1,0 +1,17 @@
+{
+  "source": "data/inference_tests/infer_1793488759132804533",
+  "success_recomputed": true,
+  "max_lift_m": 0.049397570393993284,
+  "final_window_min_lift_m": 0.049382298132832236,
+  "timing_recomputed": {
+    "observed_fps": 19.95752013785956,
+    "recorded_duration_sim_seconds": 24.95299999999952,
+    "frame_count": 499,
+    "deadline_misses": 2,
+    "max_deadline_lateness_sim_ms": 31.0000000117725,
+    "inference_wall_ms_mean": 34.18184204007022,
+    "inference_wall_ms_max": 186.9151149985555
+  },
+  "first_threshold_crossing_sim_seconds": 16.15899999999965,
+  "model_hash_verified": true
+}

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Gazebo Sim bridge, read-only diagnostics, IK teacher, collection and ACT rollout."""
 import argparse
+import hashlib
 import json
 import math
 import random
@@ -10,7 +11,9 @@ import time
 import threading
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from pickup.core import FPS, JOINTS, held_above, ordered, validate_frame
+from pickup.core import FPS, JOINTS, ordered, validate_frame
+from pickup.timing import (finish_inference_cycle, held_above_timed, final_window_start,
+                           inference_timing_summary, TIMING_TOLERANCE, MAX_LATENESS, MAX_CONSECUTIVE_MISSES)
 from pickup.models import cube_sdf
 import rclpy
 from rclpy.node import Node
@@ -173,6 +176,10 @@ def main():
     parser.add_argument('--output', default='data/episodes')
     parser.add_argument('--model-path')
     parser.add_argument('--seconds', type=float, default=15)
+    parser.add_argument('--strict-timing',action='store_true',
+        help='Stop at the first simulation-time deadline miss instead of allowing bounded isolated misses')
+    parser.add_argument('--torch-num-threads', type=int, default=2,
+        help='CPU threads for model inference (same default as training)')
     parser.add_argument('--wait-for-recording', action='store_true',
         help='After home/object reset, wait for Enter before starting the episode')
     args = parser.parse_args()
@@ -191,6 +198,8 @@ def main():
         ign_service(cfg['world'], 'set_pose', 'ignition.msgs.Pose',
             f'name: "{cfg["object_name"]}" position {{x: {x} y: {y} z: {z}}} orientation {{w: 1}}')
         return
+    if args.mode == 'infer' and (args.seconds <= 0 or args.torch_num_threads <= 0):
+        parser.error('Inference seconds and CPU threads must be positive')
     if args.wait_for_recording and args.episodes != 1:
         parser.error('--wait-for-recording requires --episodes 1')
     if args.mode == 'trial' and args.episodes != 1:
@@ -254,12 +263,37 @@ def main():
         node.ready()
         rng = random.Random(args.seed)
         policy = None
+        policy_info = None
         if args.mode == 'infer':
             if not args.model_path:
                 parser.error('infer requires --model-path')
             import torch
+            torch.set_num_threads(args.torch_num_threads)
             from lerobot.common.policies.act.modeling_act import ACTPolicy
             policy = ACTPolicy.from_pretrained(args.model_path).to('cpu').eval()
+            for key, size in [('observation.state',5),('observation.environment_state',3)]:
+                if tuple(policy.config.input_features[key].shape) != (size,):
+                    raise ValueError(f'Model input shape mismatch: {key}')
+            if tuple(policy.config.output_features['action'].shape) != (5,):
+                raise ValueError('Model action shape mismatch')
+            policy_info = {'model_path':args.model_path,'torch_num_threads':args.torch_num_threads,
+                'model_sha256':hashlib.sha256((Path(args.model_path)/'model.safetensors').read_bytes()).hexdigest(),
+                'requested_seconds_sim':args.seconds,'target_fps':FPS,
+                'timing_policy':'strict' if args.strict_timing else 'bounded_isolated_overruns',
+                'timing_tolerance_sim_seconds':TIMING_TOLERANCE,
+                'max_lateness_sim_seconds':MAX_LATENESS,'max_consecutive_misses':MAX_CONSECUTIVE_MISSES}
+            # Loading libraries can take time without spinning ROS. Refresh observations first.
+            node.wait(0.5)
+            node.ready()
+            for _ in range(3):
+                policy.reset()
+                with torch.inference_mode():
+                    policy.select_action({
+                        'observation.state':torch.tensor([node.state],dtype=torch.float32),
+                        'observation.environment_state':torch.tensor([node.xyz],dtype=torch.float32)})
+                node.wait(0.05)
+            policy.reset()
+            print(f'Model loaded and warmed up: {args.model_path}; CPU threads={args.torch_num_threads}',flush=True)
         for episode in range(args.episodes):
             node.phase(cfg['home'], 3, label='home')
             position = list(cfg['spawn_world_xyz'])
@@ -277,6 +311,8 @@ def main():
             path = Path(args.output) / f'{args.mode}_{time.time_ns()}'
             path.mkdir(parents=True, exist_ok=False)
             (path/'config.json').write_text(json.dumps(cfg,indent=2)+'\n')
+            if policy_info is not None:
+                (path/'policy_info.json').write_text(json.dumps(policy_info,indent=2)+'\n')
             frames = []
             with (path/'frames.jsonl').open('w') as stream:
                 try:
@@ -301,31 +337,49 @@ def main():
                     else:
                         policy.reset()
                         deadline = node.sim_now()
-                        for _ in range(round(args.seconds*FPS)):
+                        end_time = deadline+args.seconds
+                        consecutive_misses = 0
+                        while node.sim_now() < end_time:
                             node.ready()
+                            observation_time = node.sim_now()
                             obs = {'observation.state': list(node.state), 'observation.environment_state': list(node.xyz)}
-                            with torch.no_grad():
+                            prediction_started = time.monotonic()
+                            with torch.inference_mode():
                                 action = policy.select_action({k:torch.tensor([v],dtype=torch.float32) for k,v in obs.items()}).flatten().tolist()
-                            frame = validate_frame({**obs,'action': action,'timestamp':node.sim_now(),
-                                'joint_names':list(JOINTS),'object_frame':'crane_plus_base'})
+                            inference_ms = (time.monotonic()-prediction_started)*1000
+                            frame = validate_frame({**obs,'action': action,'timestamp':observation_time,
+                                'joint_names':list(JOINTS),'object_frame':'crane_plus_base',
+                                'phase':'policy','inference_wall_ms':inference_ms})
                             node.publish(action)
+                            deadline += 1/FPS
+                            node.wait_sim_until(deadline)
+                            now = node.sim_now()
+                            lateness = max(0.0,now-deadline)
+                            frame['deadline_lateness_sim_ms'] = lateness*1000
                             stream.write(json.dumps(frame)+'\n')
                             frames.append(frame)
-                            deadline += 1/FPS
-                            if node.sim_now() > deadline+0.015:
-                                raise RuntimeError('Inference missed 20 Hz deadline')
-                            node.wait_sim_until(deadline)
+                            deadline, consecutive_misses = finish_inference_cycle(
+                                deadline,now,consecutive_misses,strict=args.strict_timing)
+                            if lateness > TIMING_TOLERANCE+1e-9:
+                                print(f'Timing: late {lateness*1000:.1f} ms; next cycle rescheduled (no catch-up)',flush=True)
                     heights = [f['observation.environment_state'][2] for f in frames]
                     lift_threshold = cfg.get('success_lift_height', 0.04)
                     hold_seconds = cfg.get('success_hold_seconds', 1.0)
-                    success = held_above(heights, initial[2], lift=lift_threshold, hold=hold_seconds)
-                    tail = heights[-math.ceil(FPS*hold_seconds):]
+                    timestamps = [f['timestamp'] for f in frames]
+                    success = held_above_timed(timestamps,heights,initial[2],lift=lift_threshold,hold=hold_seconds)
+                    start = final_window_start(timestamps,hold_seconds)
+                    tail = heights[start:] if start is not None else heights
                     result = {'success':success,'fps':FPS,'initial_xyz':initial,'seed':args.seed,'mode':args.mode,
-                        'success_criteria':{'lift_height_m':lift_threshold,'hold_seconds':hold_seconds},
+                        'success_criteria':{'lift_height_m':lift_threshold,'hold_seconds':hold_seconds,'time_basis':'simulation_timestamps'},
                         'max_object_lift_m':max(heights)-initial[2],
                         'final_window_min_object_lift_m':min(tail)-initial[2]}
+                    if policy_info is not None:
+                        result.update({'policy':policy_info,'timing':inference_timing_summary(frames)})
                 except Exception as error:
                     result = {'success':False,'fps':FPS,'error':str(error),'mode':args.mode}
+                    if policy_info is not None:
+                        result['policy'] = policy_info
+                        result['timing'] = inference_timing_summary(frames)
                     (path/'result.json').write_text(json.dumps(result,indent=2))
                     raise
             (path/'result.json').write_text(json.dumps(result,indent=2))

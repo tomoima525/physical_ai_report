@@ -1,0 +1,84 @@
+{
+  "episode": "data/inference_tests/infer_1793485978355458017",
+  "result": {
+    "success": false,
+    "fps": 20,
+    "initial_xyz": [
+      0.09139426798457884,
+      -0.009499784895546662,
+      0.019996074669438535
+    ],
+    "seed": 42,
+    "mode": "infer",
+    "success_criteria": {
+      "lift_height_m": 0.04,
+      "hold_seconds": 1.0,
+      "time_basis": "simulation_timestamps"
+    },
+    "max_object_lift_m": 0.005389437570396227,
+    "final_window_min_object_lift_m": 0.005313464549966174,
+    "policy": {
+      "model_path": "checkpoints/pickup_act_1000",
+      "torch_num_threads": 2,
+      "model_sha256": "1ac17ff1dcc0813805c8565051b0854e9e8450551e57250a9a00800e5e886377",
+      "requested_seconds_sim": 25.0,
+      "target_fps": 20,
+      "timing_policy": "bounded_isolated_overruns",
+      "timing_tolerance_sim_seconds": 0.015,
+      "max_lateness_sim_seconds": 0.1,
+      "max_consecutive_misses": 3
+    },
+    "timing": {
+      "observed_fps": 19.772654498880424,
+      "recorded_duration_sim_seconds": 24.98399999999856,
+      "frame_count": 495,
+      "deadline_misses": 7,
+      "max_deadline_lateness_sim_ms": 93.0000000353175,
+      "inference_wall_ms_mean": 33.54518082020205,
+      "inference_wall_ms_max": 180.37994900078047
+    }
+  },
+  "final_state": [
+    0.00978553376282226,
+    -0.5151983280549232,
+    -2.139878364796594,
+    -1.1656949413556632,
+    0.22673921707108685
+  ],
+  "final_action": [
+    0.01034550741314888,
+    -0.5152563452720642,
+    -2.1400465965270996,
+    -1.1655402183532715,
+    0.2824092209339142
+  ],
+  "final_object_xyz": [
+    0.08941970034108877,
+    0.01636657761150617,
+    0.02532334954621218
+  ],
+  "object_y_displacement_m": 0.02586636250705283,
+  "final_arm_command_tracking_errors_rad": [
+    0.0005599736503266207,
+    -5.801721714104868e-05,
+    -0.00016823173050539708,
+    0.0001547230023917212
+  ],
+  "train_initial_xy_bounds_m": [
+    [
+      0.08547887516459941,
+      0.09447078006002943
+    ],
+    [
+      -0.006430784740920201,
+      0.00865924800150101
+    ]
+  ],
+  "interpretation": "Completed rollout; final arm tracks predicted commands, but commands remain near grasp instead of teacher lift pose. Cause is not yet isolated.",
+  "next_planned_test": {
+    "seed": 44,
+    "reason": "Initial position within collected training initial-position bounding box; not an exact training episode",
+    "seconds_sim": 25
+  },
+  "model_or_criteria_modified": false
+}
