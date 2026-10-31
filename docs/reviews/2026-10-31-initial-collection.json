@@ -1,0 +1,211 @@
+{
+  "review_date": "2026-10-31",
+  "source": "data/episodes",
+  "episodes": [
+    {
+      "episode": "collect_1793469506974905692",
+      "success": true,
+      "eligible_for_current_converter": true,
+      "frame_count": 367,
+      "duration_sim_seconds": 18.304000000000087,
+      "min_final_hold_lift_mm": 43.918358682415004,
+      "max_lift_mm": 46.03298757219121,
+      "initial_xyz": [
+        0.0864566925510413,
+        -0.0009014599097195726,
+        0.019995056404409572
+      ],
+      "interval_ms_min": 42.0000000001437,
+      "interval_ms_max": 57.00000000001637,
+      "irregular_intervals": [],
+      "other_issues": []
+    },
+    {
+      "episode": "collect_1793469561004573840",
+      "success": true,
+      "eligible_for_current_converter": true,
+      "frame_count": 365,
+      "duration_sim_seconds": 18.201000000000022,
+      "min_final_hold_lift_mm": 44.92688556228397,
+      "max_lift_mm": 46.529681690990586,
+      "initial_xyz": [
+        0.09270783805659022,
+        0.004110264538680559,
+        0.019995056404409572
+      ],
+      "interval_ms_min": 38.000000000010914,
+      "interval_ms_max": 62.00000000012551,
+      "irregular_intervals": [],
+      "other_issues": []
+    },
+    {
+      "episode": "collect_1793469615859157802",
+      "success": true,
+      "eligible_for_current_converter": false,
+      "frame_count": 365,
+      "duration_sim_seconds": 18.200000000000045,
+      "min_final_hold_lift_mm": 44.504678566626325,
+      "max_lift_mm": 46.122366769355104,
+      "initial_xyz": [
+        0.09231958973033255,
+        -0.0013297113020919252,
+        0.01999811019159292
+      ],
+      "interval_ms_min": 23.999999999887223,
+      "interval_ms_max": 76.00000000002183,
+      "irregular_intervals": [
+        {
+          "frame_pair": [
+            133,
+            134
+          ],
+          "phase": "close",
+          "interval_ms": 76.0
+        },
+        {
+          "frame_pair": [
+            134,
+            135
+          ],
+          "phase": "close",
+          "interval_ms": 24.0
+        }
+      ],
+      "other_issues": []
+    },
+    {
+      "episode": "collect_1793469669157933213",
+      "success": true,
+      "eligible_for_current_converter": true,
+      "frame_count": 365,
+      "duration_sim_seconds": 18.202999999999975,
+      "min_final_hold_lift_mm": 43.46485515582232,
+      "max_lift_mm": 45.9412953923064,
+      "initial_xyz": [
+        0.09300020457133427,
+        0.0006580282928514269,
+        0.019997093880671057
+      ],
+      "interval_ms_min": 43.99999999986903,
+      "interval_ms_max": 56.00000000004002,
+      "irregular_intervals": [],
+      "other_issues": []
+    },
+    {
+      "episode": "collect_1793469721091667066",
+      "success": true,
+      "eligible_for_current_converter": true,
+      "frame_count": 366,
+      "duration_sim_seconds": 18.251999999999953,
+      "min_final_hold_lift_mm": 43.757061442574184,
+      "max_lift_mm": 45.48816073468043,
+      "initial_xyz": [
+        0.08580153709178502,
+        -0.0008810823763286575,
+        0.019996074669438535
+      ],
+      "interval_ms_min": 41.99999999991633,
+      "interval_ms_max": 57.999999999992724,
+      "irregular_intervals": [],
+      "other_issues": []
+    },
+    {
+      "episode": "collect_1793469773166480324",
+      "success": true,
+      "eligible_for_current_converter": true,
+      "frame_count": 365,
+      "duration_sim_seconds": 18.200000000000045,
+      "min_final_hold_lift_mm": 43.7944083340549,
+      "max_lift_mm": 46.13212834492053,
+      "initial_xyz": [
+        0.08547887516459941,
+        0.00865924800150101,
+        0.019996074669438535
+      ],
+      "interval_ms_min": 43.99999999986903,
+      "interval_ms_max": 56.00000000004002,
+      "irregular_intervals": [],
+      "other_issues": []
+    },
+    {
+      "episode": "collect_1793469828116493659",
+      "success": true,
+      "eligible_for_current_converter": true,
+      "frame_count": 366,
+      "duration_sim_seconds": 18.250999999999976,
+      "min_final_hold_lift_mm": 42.65031756169457,
+      "max_lift_mm": 45.85349560437946,
+      "initial_xyz": [
+        0.09447078006002943,
+        -0.0032929844811997993,
+        0.019996074669438535
+      ],
+      "interval_ms_min": 44.999999999845386,
+      "interval_ms_max": 55.000000000063665,
+      "irregular_intervals": [],
+      "other_issues": []
+    },
+    {
+      "episode": "collect_1793469883464837567",
+      "success": true,
+      "eligible_for_current_converter": true,
+      "frame_count": 365,
+      "duration_sim_seconds": 18.201000000000022,
+      "min_final_hold_lift_mm": 44.918345207723306,
+      "max_lift_mm": 46.46576105218592,
+      "initial_xyz": [
+        0.08809405929140034,
+        0.0053603629749016096,
+        0.019999114340294
+      ],
+      "interval_ms_min": 40.99999999993997,
+      "interval_ms_max": 59.00000000019645,
+      "irregular_intervals": [],
+      "other_issues": []
+    },
+    {
+      "episode": "collect_1793469937651451381",
+      "success": true,
+      "eligible_for_current_converter": true,
+      "frame_count": 365,
+      "duration_sim_seconds": 18.201000000000022,
+      "min_final_hold_lift_mm": 43.85149624856677,
+      "max_lift_mm": 45.78659085408488,
+      "initial_xyz": [
+        0.08703869528776857,
+        -0.006430784740920201,
+        0.019995056404409572
+      ],
+      "interval_ms_min": 38.99999999998727,
+      "interval_ms_max": 60.99999999992178,
+      "irregular_intervals": [],
+      "other_issues": []
+    },
+    {
+      "episode": "collect_1793469991596034280",
+      "success": true,
+      "eligible_for_current_converter": true,
+      "frame_count": 367,
+      "duration_sim_seconds": 18.30100000000016,
+      "min_final_hold_lift_mm": 43.340789890124356,
+      "max_lift_mm": 45.76610270930015,
+      "initial_xyz": [
+        0.08688594914174486,
+        -0.003059910927703655,
+        0.019997093880671057
+      ],
+      "interval_ms_min": 43.00000000012005,
+      "interval_ms_max": 57.00000000001637,
+      "irregular_intervals": [],
+      "other_issues": []
+    }
+  ],
+  "summary": {
+    "episode_count": 10,
+    "success_count": 10,
+    "eligible_count": 9,
+    "frame_count": 3656,
+    "eligible_frame_count": 3291,
+    "other_issue_count": 0
+  }
+}

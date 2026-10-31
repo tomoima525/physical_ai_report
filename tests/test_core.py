@@ -35,6 +35,37 @@ class ContractTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_frame(frame)
 
+    def test_sampling_tolerance_boundary_at_large_sim_time(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp)
+            (path/'result.json').write_text(json.dumps({'success':True,'fps':20}))
+            for delta, valid in [(.065, True), (.0651, False)]:
+                (path/'frames.jsonl').write_text('\n'.join(json.dumps(self.frame(t)) for t in [1000.,1000.+delta]))
+                if valid:
+                    self.assertEqual(len(converter.read_episode(path)),2)
+                else:
+                    with self.assertRaises(ValueError):
+                        converter.read_episode(path)
+
+    def test_explicit_exclusion_preserves_invalid_source(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for name, times in [('good',[0,.05]),('bad',[0,.2])]:
+                ep = root/name
+                ep.mkdir()
+                (ep/'result.json').write_text(json.dumps({'success':True,'fps':20}))
+                (ep/'frames.jsonl').write_text('\n'.join(json.dumps(self.frame(t)) for t in times))
+            before = (root/'bad'/'frames.jsonl').read_bytes()
+            with self.assertRaises(ValueError):
+                converter.select_episodes(root)
+            chosen = converter.select_episodes(root,['bad'])
+            self.assertEqual([p.name for p,_ in chosen],['good'])
+            self.assertEqual((root/'bad'/'frames.jsonl').read_bytes(),before)
+            with self.assertRaises(ValueError):
+                converter.select_episodes(root,['typo'])
+            with self.assertRaises(ValueError):
+                converter.select_episodes(root,['good','bad'])
+
     def test_failed_and_irregular_episodes_excluded(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp)

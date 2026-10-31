@@ -1,0 +1,38 @@
+{
+  "verified": true,
+  "dataset_root": "/home/tomo/workspace/robots/ros2/ai_robot_book_data/pickup_experiment/data/lerobot/pickup",
+  "episodes": 9,
+  "frames": 3291,
+  "fps": 20,
+  "all_source_frames_match": true,
+  "max_float_conversion_error": {
+    "observation.state": 1.1902517682571556e-07,
+    "observation.environment_state": 3.7245736633773063e-09,
+    "action": 1.1913370201455109e-07
+  },
+  "batch_shapes": {
+    "observation.state": [
+      2,
+      1,
+      5
+    ],
+    "observation.environment_state": [
+      2,
+      1,
+      3
+    ],
+    "action": [
+      2,
+      16,
+      5
+    ]
+  },
+  "episode_boundaries_loaded": 18,
+  "excluded_episode_names": [
+    "collect_1793469615859157802"
+  ],
+  "notes": [
+    "Parquet timestamps are rebuilt on a 20 Hz grid after raw interval validation.",
+    "Metadata currently places all episodes in train; no held-out split or training run was evaluated."
+  ]
+}

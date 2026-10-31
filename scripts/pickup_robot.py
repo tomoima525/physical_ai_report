@@ -166,7 +166,8 @@ def spawn(cfg):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('mode', choices=['diagnose','spawn','respawn','reset','plan','scan','trial','collect','infer'])
-    parser.add_argument('--config', default='configs/pickup.json')
+    parser.add_argument('--config', default='configs/pickup_clearance_candidate.json',
+        help='Configuration file (default: working 4 cm cube setup)')
     parser.add_argument('--episodes', type=int, default=1)
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--output', default='data/episodes')
@@ -177,6 +178,7 @@ def main():
     args = parser.parse_args()
     cfg = json.loads(Path(args.config).read_text())
     if args.mode in ('spawn', 'respawn'):
+        print(f'config={args.config}; cube_size={cfg["cube_size"]} m; mass={cfg.get("cube_mass", 0.02)} kg', flush=True)
         if args.mode == 'respawn':
             print(f'Replacing Gazebo model {cfg["object_name"]} with cube_size={cfg["cube_size"]} m', flush=True)
             ign_service(cfg['world'], 'remove', 'ignition.msgs.Entity',
@@ -248,7 +250,7 @@ def main():
                 print(label, seed, flush=True)
             return
         if not cfg['calibrated'] and args.mode != 'trial':
-            raise RuntimeError('Calibrate grasp geometry and joint limits, then set calibrated=true in configs/pickup.json')
+            raise RuntimeError(f'Calibrate grasp geometry and joint limits, then set calibrated=true in {args.config}')
         node.ready()
         rng = random.Random(args.seed)
         policy = None

@@ -56,7 +56,7 @@
       0.667938
     ]
   ],
-  "calibrated": false,
+  "calibrated": true,
   "cube_mass": 0.02,
   "success_lift_height": 0.04,
   "success_hold_seconds": 1.0

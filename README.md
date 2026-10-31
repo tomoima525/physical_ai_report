@@ -8,7 +8,7 @@
 - シミュレーション時刻で20 Hz、関節5個＋物体座標3個→目標関節5個のデータ契約。
 - Gazebo Simで物体生成・位置変更、MoveIt IKによる教師、成功判定、成功データ変換、ACT推論を実装。
 - 単体テストと、合成データによるLeRobot変換・ACT損失計算・逆伝播・保存/再読込を検証。
-- **物理把持・実データ学習・学習済みモデルの成功率は未検証です。** `calibrated=false` はその状態を表します。
+- **4 cm立方体の単発把持・持ち上げを目視確認済みです。** 保存済み試行は4 cm・1秒の新条件でも成功を確認。seed 43〜45の3配置と端付近の4配置で教師動作の成功を確認し、候補設定を`calibrated=true`にしています。検証した狭い範囲で収集を始める段階であり、実データ学習と学習済みモデルの成功率は未検証です。
 
 元の講義READMEは `docs/lecture_README.md` に保存しています。
 
@@ -29,8 +29,10 @@ scripts/container.sh scripts/pickup_robot.py diagnose
 
 ## 実行順序
 
+`pickup_robot.py` は全モードで既定の設定として `configs/pickup_clearance_candidate.json`（一辺4 cm）を読みます。`--config` を省略しても生成と動作の設定が揃います。旧2.5 cm設定は `--config configs/pickup.json` で明示指定した場合のみ使用します。既に小さいpickup_cubeを生成している場合は、`spawn`ではなく`respawn`で作り直してください。
+
 ```bash
-# 初回のみ: 赤い2.5cm立方体を追加（既存物体は削除しません）
+# 初回のみ: 赤い4cm立方体を追加（既存物体は削除しません）
 scripts/container.sh scripts/pickup_robot.py spawn
 # 関節・物体座標・IKサービスの確認
 scripts/container.sh scripts/pickup_robot.py diagnose
@@ -38,7 +40,7 @@ scripts/container.sh scripts/pickup_robot.py diagnose
 scripts/container.sh scripts/pickup_robot.py plan
 ```
 
-`configs/pickup.json` の把持オフセット・手先姿勢・グリッパー開閉値・可動域を調整します。ロボット基準座標の原点はworldの `[0,0,1.015]`、軸は同じ方向という前提です。モデルを移動/回転した場合は座標変換を変更してください。既存の手先フレームはlink4原点のため、指の実際の把持中心とのオフセットが必要です。
+`configs/pickup_clearance_candidate.json` の把持オフセット・手先姿勢・グリッパー開閉値・可動域を調整します。ロボット基準座標の原点はworldの `[0,0,1.015]`、軸は同じ方向という前提です。モデルを移動/回転した場合は座標変換を変更してください。既存の手先フレームはlink4原点のため、指の実際の把持中心とのオフセットが必要です。
 
 初期設定は候補値です。IK成功だけでは経路の衝突や物理把持の成功は保証されません。現在の教師は関節補間を使い、MoveItの経路計画は使いません。候補動作を検証できる状態になったら `calibrated=true` に変更し、まず1件で確認します。実機を接続しないシミュレータで実行してください。
 
@@ -102,7 +104,7 @@ scripts/container.sh scripts/pickup_robot.py respawn --config configs/pickup_cle
 scripts/container.sh scripts/pickup_robot.py plan --config configs/pickup_clearance_candidate.json
 ```
 
-respawnは設定のobject_name（pickup_cube）のモデルを置換します。plan成功後に同じ--configを付けたtrialで確認します。過去のデータは保持します。今後の試行にはconfig.jsonも保存します。対象物の寸法と質量、条件変更の理由は提出レポートに明記してください。大型化後の把持成功は未確認です。
+respawnは設定のobject_name（pickup_cube）のモデルを置換します。plan成功後に同じ--configを付けたtrialで確認します。過去のデータは保持します。今後の試行にはconfig.jsonも保存します。対象物の寸法と質量、条件変更の理由は提出レポートに明記してください。大型化後の単発把持は確認済みです。再現性は引き続き検証します。
 
 ### 教師動作の撮影
 
@@ -113,3 +115,21 @@ scripts/container.sh scripts/pickup_robot.py trial --config configs/pickup_clear
 ```
 
 ホーム復帰と箱の再配置後にEnter待ちします。画面録画を開始してからターミナルでEnterを押してください。画面録画自体は別の録画機能で行います。これは教師スクリプトの動作確認動画です。課題のAI活用を示す学習済みモデルの推論評価は後続工程です。
+
+### 初回9件のデータ変換
+
+記録間隔が不適合な1件は元データを残して明示除外します。除外名の誤記や、選択対象にある他の不正記録はエラーになります。
+
+```bash
+scripts/container.sh scripts/pickup_dataset.py --episodes data/episodes --exclude-episode collect_1793469615859157802 --output data/lerobot/pickup
+```
+
+初回収集から9件・3,291フレームの変換と読み込み検証を完了しています。`--validate-only`を付けると生成せず検査だけ行います。変換成功時は`meta/conversion_manifest.json`に採用元・除外名・元フレームのハッシュを記録します。出力先が存在すると上書きせず停止します。
+
+### 変換後の検証
+
+```bash
+scripts/container.sh scripts/verify_pickup_dataset.py
+```
+
+元記録のハッシュと全フレームの一致、メタデータ、エピソード境界、LeRobotの学習用バッチ形状を検証します。変換後の時刻は、元の間隔を検証した上で20 Hzのグリッドへ再構成されます。初回データは検証済みで、詳細はdocs/reviews/2026-10-31-converted-dataset.jsonです。まだ学習しておらず、現状のtrain splitは全9件のため、本学習前にエピソード単位の検証データ分離を決めます。
