@@ -26,7 +26,8 @@ def main():
     assert info['fps'] == manifest['fps'] == 20
     assert info['total_episodes'] == len(manifest['episodes']) == len(metadata_episodes)
     assert info['total_frames'] == manifest['total_frames']
-    expected_features = {'observation.state':5, 'observation.environment_state':3, 'action':5}
+    env_size=4 if manifest.get('include_elapsed_time',False) else 3
+    expected_features = {'observation.state':5, 'observation.environment_state':env_size, 'action':5}
     for key, size in expected_features.items():
         assert info['features'][key]['shape'] == [size]
         assert info['features'][key]['dtype'] == 'float32'
@@ -40,6 +41,10 @@ def main():
         raw = (source/'frames.jsonl').read_bytes()
         assert hashlib.sha256(raw).hexdigest() == entry['frames_sha256'], source
         rows = [json.loads(line) for line in raw.splitlines()]
+        if manifest.get('include_elapsed_time',False):
+            for row in rows:
+                row['observation.environment_state']=[*row['observation.environment_state'],
+                    row['timestamp']-rows[0]['timestamp']]
         parquet_path = root/info['data_path'].format(episode_chunk=i//info['chunks_size'],episode_index=i)
         table = pq.read_table(parquet_path)
         n = len(rows)
@@ -71,13 +76,13 @@ def main():
         for index in [boundary,boundary+entry['frame_count']-1]:
             frame = dataset[index]
             assert tuple(frame['observation.state'].shape) == (1,5)
-            assert tuple(frame['observation.environment_state'].shape) == (1,3)
+            assert tuple(frame['observation.environment_state'].shape) == (1,env_size)
             assert tuple(frame['action'].shape) == (16,5)
             assert torch.isfinite(frame['action']).all()
         boundary += entry['frame_count']
     batch = next(iter(torch.utils.data.DataLoader(dataset,batch_size=2,shuffle=False,num_workers=0)))
     shapes = {key:list(batch[key].shape) for key in expected_features}
-    assert shapes == {'observation.state':[2,1,5], 'observation.environment_state':[2,1,3], 'action':[2,16,5]}
+    assert shapes == {'observation.state':[2,1,5], 'observation.environment_state':[2,1,env_size], 'action':[2,16,5]}
     report = {'verified':True,'dataset_root':str(root),'episodes':len(sources),'frames':count,
               'fps':info['fps'],'all_source_frames_match':True,'max_float_conversion_error':errors,
               'batch_shapes':shapes,'episode_boundaries_loaded':len(sources)*2,

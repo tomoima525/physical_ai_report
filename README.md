@@ -158,6 +158,28 @@ scripts/container.sh scripts/train.py --config configs/train_1000.yaml
 
 出力先はcheckpoints/pickup_act_1000。前回と同じ25ステップ周期で評価し、完了後に保存モデルの検証MAEと関節制限超過を比較します。
 
+### 物体座標の正規化と5,000ステップの比較学習
+
+物体座標を学習エピソードのみの平均・標準偏差で正規化する比較設定はconfigs/train_1000_envnorm.yamlです。このモデルはseed 42・44で成功、43・45で失敗しました（各1回）。
+
+次はデータ分割・seed・モデル構成・正規化・評価周期を揃え、初期状態から合計5,000ステップを学習します。1,000ステップのcheckpointからの再開ではありません。
+
+```bash
+scripts/container.sh scripts/train.py --config configs/train_5000_envnorm.yaml
+```
+
+出力先はcheckpoints/pickup_act_5000_envnorm。W&Bでオンライン記録する場合は、ログイン後に同コマンドの先頭へWANDB_MODE=onlineを付けます。既定はオフライン保存です。完了後にオフラインレビューを行い、同じ4配置で動作を比較します。
+
+### 追加収集データによる比較学習
+
+configs/train_5000_expanded.yamlは既存9件と追加28件を統合したdata/lerobot/pickup_expandedを使います。以前の検証2件を固定し、学習側だけを7件から35件に増やします。分割はconfigs/pickup_split_expanded.jsonで変換manifestに結び付けます。周期検査に不適合な既存1件・追加2件は明示除外しています。
+
+```bash
+WANDB_MODE=online scripts/container.sh scripts/train.py --config configs/train_5000_expanded.yaml
+```
+
+同じ初期seed・小型構成・正規化で合計5,000ステップを初期状態から学習し、checkpoints/pickup_act_5000_expandedに保存します。データが増えるため同じステップ数での各フレームの反復回数は少なくなります。検証結果と動作試験を合わせて比較してください。
+
 ### 学習済みモデルの単発推論
 
 1,000ステップモデルは検証用732観測のオフライン評価で関節制限超過0件。次はシミュレーション内の閉ループ動作を確認します。
@@ -166,10 +188,33 @@ scripts/container.sh scripts/train.py --config configs/train_1000.yaml
 scripts/container.sh scripts/pickup_robot.py infer --model-path checkpoints/pickup_act_1000 --seed 42 --seconds 25 --output data/inference_tests
 ```
 
-ホーム復帰・箱の再配置後は、教師スクリプトのIK段階を使わずモデルから指令を生成します。既定CPUスレッド数は2。モデル読み込み後に観測を更新・推論をウォームアップします。試行にはpolicy_info.json（モデルのSHA-256など）を保存し、フレームと結果に推論時間を記録します。時間はsim時刻で25秒のため、wall時刻の所要時間はシミュレータ速度に依存します。推論中は教師/テレオペを同時に動かさないでください。モデルの閉ループ把持成功は未確認です。
+ホーム復帰・箱の再配置後は、教師スクリプトのIK段階を使わずモデルから指令を生成します。既定CPUスレッド数は2。モデル読み込み後に観測を更新・推論をウォームアップします。試行にはpolicy_info.json（モデルのSHA-256など）を保存し、フレームと結果に推論時間を記録します。時間はsim時刻で25秒のため、wall時刻の所要時間はシミュレータ速度に依存します。推論中は教師/テレオペを同時に動かさないでください。正規化なしの旧モデルは試験で停滞しました。正規化ありモデルの比較結果は上記と作業ログを参照してください。
 
 ### 推論時の一時的な遅延
 
 目標周期は20 Hzです。締切を15 ms超過した単発の遅れは記録して次周期を現在時刻から再開します。100 ms超の締切遅延または3回連続超過では停止します（いずれもsim時刻）。追い付きのために指令を連続送信しません。従来の厳密な停止を使う場合はinferに--strict-timingを指定します。result.jsonのtimingで実測fpsと遅延を確認してください。学習データの時刻検査は緩めていません。
 
 保持判定は実測のシミュレーション時刻に基づく4 cm以上・1秒です。観測間隔が変わっても20フレームを1秒とみなさず、保持区間内に200 ms超の観測欠落がある場合は成功にしません。
+
+### 同じACTモデルで8時点分を実行する比較
+
+```bash
+scripts/container.sh scripts/pickup_robot.py infer \
+  --model-path checkpoints/pickup_act_5000_expanded \
+  --n-action-steps 8 --seed 43 --seconds 25 --output data/inference_tests
+```
+
+--n-action-stepsは推論時のみの設定です。省略時は保存モデルの値（今回1）を使用。8の場合、予測列の先頭8指令を20 Hzで順番に送り、次の予測はキュー消化後に行います。通常の予測更新間隔は0.4秒ですが、周期遅延で延びる場合があります。観測・指令検査は各周期に維持し、各試行のpolicy情報に保存時と実行時の値を記録します。モデルファイルは変更しません。この設定では8指令の途中で新しい観測から再予測しないため、把持結果は別途比較が必要です。
+
+### 経過時間を加えた比較
+
+configs/train_5000_elapsed.yamlは、関節状態5次元に加え、物体xyzとエピソード開始からの経過sim秒を環境入力4次元として使います。データはdata/lerobot/pickup_elapsed、分割はconfigs/pickup_split_elapsed.jsonで、検証2件は固定です。教師の段階ラベルは入力しません。
+
+```bash
+WANDB_MODE=online scripts/container.sh scripts/train.py --config configs/train_5000_elapsed.yaml
+scripts/container.sh scripts/pickup_robot.py infer --model-path checkpoints/pickup_act_5000_elapsed --seed 43 --seconds 25 --output data/inference_tests
+```
+
+経過時間は最初の記録フレームを0秒とする実sim時刻差です。推論も最初のpolicy観測から計測し、モデルの4次元入力から自動選択します。生の記録はxyz3次元を保ち、時間はpolicy_elapsed_sim_secondsに保存。入力時間は学習データ内の統計で正規化します。時間条件付き方策のため、把持を確認して段階を進める制御とは異なり、成功判定を別途確認します。
+
+推論時は予測の前後にROS受信処理を行い、関節状態と物体座標の鮮度を確認します。関節状態の更新が0.3秒以上古い場合は、短時間だけ受信を進めて再検査し、解消しなければ指令を送らず停止します。入力時と送信前の関節状態の年齢、追加受信による回復回数もフレームに記録します。

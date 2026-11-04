@@ -3,6 +3,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 from pickup.core import JOINTS, ordered, held_above, validate_frame
 
 spec = importlib.util.spec_from_file_location('converter', 'scripts/pickup_dataset.py')
@@ -65,6 +66,26 @@ class ContractTests(unittest.TestCase):
                 converter.select_episodes(root,['typo'])
             with self.assertRaises(ValueError):
                 converter.select_episodes(root,['good','bad'])
+
+    def test_multiple_sources_exclusions_and_duplicate_rejection(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            roots=[Path(tmp)/'original',Path(tmp)/'extra']
+            for root,name in [(roots[0],'first'),(roots[1],'second'),(roots[1],'bad')]:
+                ep=root/name
+                ep.mkdir(parents=True)
+                (ep/'result.json').write_text(json.dumps({'success':True,'fps':20}))
+                times=[0,.2] if name=='bad' else [0,.05]
+                (ep/'frames.jsonl').write_text('\n'.join(json.dumps(self.frame(t)) for t in times))
+            argv=['converter','--episodes',str(roots[0]),'--additional-episodes',str(roots[1]),
+                  '--exclude-episode','bad','--validate-only']
+            with patch('sys.argv',argv):
+                converter.main()
+            with patch('sys.argv',argv+['--exclude-episode','typo']):
+                with self.assertRaises(ValueError):
+                    converter.main()
+            with patch('sys.argv',argv+['--additional-episodes',str(roots[0])]):
+                with self.assertRaises(ValueError):
+                    converter.main()
 
     def test_failed_and_irregular_episodes_excluded(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -1,0 +1,9 @@
+{
+  "read_only": true,
+  "samples": 325,
+  "wall_hz": 32.94944333849145,
+  "max_wall_gap_seconds": 0.0785139260115102,
+  "wall_gaps_over_0_3": 0,
+  "sim_stamp_advancement": 3.2399999999979627,
+  "interpretation": "Stream currently active; prior callback starvation after 285ms inference is plausible, not proven."
+}

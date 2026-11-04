@@ -15,6 +15,8 @@ from pickup.core import FPS, JOINTS, ordered, validate_frame
 from pickup.timing import (finish_inference_cycle, held_above_timed, final_window_start,
                            inference_timing_summary, TIMING_TOLERANCE, MAX_LATENESS, MAX_CONSECUTIVE_MISSES)
 from pickup.models import cube_sdf
+from pickup.gazebo import ign_service
+from pickup.inference import configure_action_steps, environment_with_elapsed, refresh_observations
 import rclpy
 from rclpy.node import Node
 from rclpy.parameter import Parameter
@@ -152,14 +154,6 @@ class Robot(Node):
                            f'hand={self.state[4]:.3f}, target_hand={target[4]:.3f}')
 
 
-def ign_service(world, service, request_type, request):
-    result = subprocess.run(['ign','service','-s',f'/world/{world}/{service}',
-        '--reqtype',request_type,'--reptype','ignition.msgs.Boolean',
-        '--timeout','5000','--req',request], capture_output=True, text=True, timeout=8, check=True)
-    if 'data: true' not in result.stdout:
-        raise RuntimeError(f'Gazebo {service} failed: {result.stdout} {result.stderr}')
-
-
 def spawn(cfg):
     sdf = cube_sdf(cfg)
     ign_service(cfg['world'], 'create', 'ignition.msgs.EntityFactory',
@@ -175,6 +169,8 @@ def main():
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--output', default='data/episodes')
     parser.add_argument('--model-path')
+    parser.add_argument('--n-action-steps',type=int,default=None,
+        help='ACT queued actions per prediction (1..chunk_size; default: saved model setting)')
     parser.add_argument('--seconds', type=float, default=15)
     parser.add_argument('--strict-timing',action='store_true',
         help='Stop at the first simulation-time deadline miss instead of allowing bounded isolated misses')
@@ -183,6 +179,8 @@ def main():
     parser.add_argument('--wait-for-recording', action='store_true',
         help='After home/object reset, wait for Enter before starting the episode')
     args = parser.parse_args()
+    if args.n_action_steps is not None and args.mode != 'infer':
+        parser.error('--n-action-steps is only supported for infer')
     cfg = json.loads(Path(args.config).read_text())
     if args.mode in ('spawn', 'respawn'):
         print(f'config={args.config}; cube_size={cfg["cube_size"]} m; mass={cfg.get("cube_mass", 0.02)} kg', flush=True)
@@ -271,7 +269,13 @@ def main():
             torch.set_num_threads(args.torch_num_threads)
             from lerobot.common.policies.act.modeling_act import ACTPolicy
             policy = ACTPolicy.from_pretrained(args.model_path).to('cpu').eval()
-            for key, size in [('observation.state',5),('observation.environment_state',3)]:
+            execution_info=configure_action_steps(policy,args.n_action_steps)
+            print(f'ACT execution: {execution_info}',flush=True)
+            env_size=policy.config.input_features['observation.environment_state'].shape[0]
+            if env_size not in (3,4):
+                raise ValueError('Unsupported model environment shape')
+            uses_elapsed=env_size==4
+            for key, size in [('observation.state',5),('observation.environment_state',env_size)]:
                 if tuple(policy.config.input_features[key].shape) != (size,):
                     raise ValueError(f'Model input shape mismatch: {key}')
             if tuple(policy.config.output_features['action'].shape) != (5,):
@@ -279,9 +283,14 @@ def main():
             policy_info = {'model_path':args.model_path,'torch_num_threads':args.torch_num_threads,
                 'model_sha256':hashlib.sha256((Path(args.model_path)/'model.safetensors').read_bytes()).hexdigest(),
                 'requested_seconds_sim':args.seconds,'target_fps':FPS,
+                **execution_info,'include_elapsed_time':uses_elapsed,
+                'elapsed_time_basis':'sim_seconds_since_first_policy_observation' if uses_elapsed else None,
+                'queued_action_duration_sim_seconds':execution_info['n_action_steps']/FPS,
                 'timing_policy':'strict' if args.strict_timing else 'bounded_isolated_overruns',
                 'timing_tolerance_sim_seconds':TIMING_TOLERANCE,
-                'max_lateness_sim_seconds':MAX_LATENESS,'max_consecutive_misses':MAX_CONSECUTIVE_MISSES}
+                'max_lateness_sim_seconds':MAX_LATENESS,'max_consecutive_misses':MAX_CONSECUTIVE_MISSES,
+                'observation_callback_pump_wall_seconds':0.005,
+                'observation_refresh_retry_wall_seconds':0.05}
             # Loading libraries can take time without spinning ROS. Refresh observations first.
             node.wait(0.5)
             node.ready()
@@ -290,7 +299,7 @@ def main():
                 with torch.inference_mode():
                     policy.select_action({
                         'observation.state':torch.tensor([node.state],dtype=torch.float32),
-                        'observation.environment_state':torch.tensor([node.xyz],dtype=torch.float32)})
+                        'observation.environment_state':torch.tensor([environment_with_elapsed(node.xyz,0.0) if uses_elapsed else node.xyz],dtype=torch.float32)})
                 node.wait(0.05)
             policy.reset()
             print(f'Model loaded and warmed up: {args.model_path}; CPU threads={args.torch_num_threads}',flush=True)
@@ -338,18 +347,34 @@ def main():
                         policy.reset()
                         deadline = node.sim_now()
                         end_time = deadline+args.seconds
+                        first_observation_time=None
                         consecutive_misses = 0
                         while node.sim_now() < end_time:
-                            node.ready()
+                            recovered_before=refresh_observations(node)
                             observation_time = node.sim_now()
                             obs = {'observation.state': list(node.state), 'observation.environment_state': list(node.xyz)}
+                            if first_observation_time is None:
+                                first_observation_time=observation_time
+                            elapsed=observation_time-first_observation_time
+                            policy_obs=dict(obs)
+                            if uses_elapsed:
+                                policy_obs['observation.environment_state']=environment_with_elapsed(node.xyz,elapsed)
+                            input_joint_age_ms=(time.monotonic()-node.state_at)*1000
+                            input_pose_age_ms=(time.monotonic()-node.pose_at)*1000
                             prediction_started = time.monotonic()
                             with torch.inference_mode():
-                                action = policy.select_action({k:torch.tensor([v],dtype=torch.float32) for k,v in obs.items()}).flatten().tolist()
+                                action = policy.select_action({k:torch.tensor([v],dtype=torch.float32) for k,v in policy_obs.items()}).flatten().tolist()
                             inference_ms = (time.monotonic()-prediction_started)*1000
                             frame = validate_frame({**obs,'action': action,'timestamp':observation_time,
                                 'joint_names':list(JOINTS),'object_frame':'crane_plus_base',
                                 'phase':'policy','inference_wall_ms':inference_ms})
+                            if uses_elapsed:
+                                frame['policy_elapsed_sim_seconds']=elapsed
+                            recovered_after=refresh_observations(node)
+                            frame['input_joint_age_wall_ms']=input_joint_age_ms
+                            frame['input_pose_age_wall_ms']=input_pose_age_ms
+                            frame['pre_publish_joint_age_wall_ms']=(time.monotonic()-node.state_at)*1000
+                            frame['observation_refresh_recoveries']=int(recovered_before)+int(recovered_after)
                             node.publish(action)
                             deadline += 1/FPS
                             node.wait_sim_until(deadline)

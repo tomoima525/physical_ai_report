@@ -43,6 +43,9 @@ def main():
     train_cfg=yaml.safe_load(Path(args.config).read_text())
     root=Path(train_cfg['dataset_root'])
     split, indices=load_bound_split(root,train_cfg['split_path'])
+    manifest=json.loads((root/'meta/conversion_manifest.json').read_text())
+    if bool(manifest.get('include_elapsed_time',False)) != bool(train_cfg.get('include_elapsed_time',False)):
+        raise ValueError('Elapsed time setting does not match dataset manifest')
     output=Path(train_cfg['output_directory'])
     for key in ['training_steps','batch_size','chunk_size','n_action_steps','log_freq','eval_freq']:
         if train_cfg[key] <= 0:
@@ -82,7 +85,7 @@ def main():
 
     def prepare(batch):
         batch={k:(v.to(device) if isinstance(v,torch.Tensor) else v) for k,v in batch.items()}
-        for key,size in [('observation.state',5),('observation.environment_state',3)]:
+        for key,size in [('observation.state',5),('observation.environment_state',4 if train_cfg.get('include_elapsed_time',False) else 3)]:
             if batch[key].ndim != 3 or batch[key].shape[1:] != (1,size):
                 raise ValueError(f'Unexpected {key} shape: {tuple(batch[key].shape)}')
             batch[key]=batch[key][:,-1,:]

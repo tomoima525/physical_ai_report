@@ -1,0 +1,98 @@
+{
+  "checkpoint": "checkpoints/pickup_act_5000_elapsed",
+  "validation_mae_rad": 0.01486598474807943,
+  "tests": [
+    {
+      "seed": 43,
+      "source": "data/inference_tests/infer_1793719866491540756",
+      "completed": true,
+      "result": {
+        "success": true,
+        "fps": 20,
+        "initial_xyz": [
+          0.0853855183933738,
+          0.003924486452741021,
+          0.01999811019159292
+        ],
+        "seed": 43,
+        "mode": "infer",
+        "success_criteria": {
+          "lift_height_m": 0.04,
+          "hold_seconds": 1.0,
+          "time_basis": "simulation_timestamps"
+        },
+        "max_object_lift_m": 0.04793966983774056,
+        "final_window_min_object_lift_m": 0.04759310116024551,
+        "policy": {
+          "model_path": "checkpoints/pickup_act_5000_elapsed",
+          "torch_num_threads": 2,
+          "model_sha256": "0149a287e2cf0a380341a881ac5df7f194bfde61cc1d5dadcd4b89bdfa52da66",
+          "requested_seconds_sim": 25.0,
+          "target_fps": 20,
+          "saved_n_action_steps": 1,
+          "n_action_steps": 1,
+          "chunk_size": 16,
+          "include_elapsed_time": true,
+          "elapsed_time_basis": "sim_seconds_since_first_policy_observation",
+          "queued_action_duration_sim_seconds": 0.05,
+          "timing_policy": "bounded_isolated_overruns",
+          "timing_tolerance_sim_seconds": 0.015,
+          "max_lateness_sim_seconds": 0.1,
+          "max_consecutive_misses": 3
+        },
+        "timing": {
+          "observed_fps": 19.755560008013042,
+          "recorded_duration_sim_seconds": 24.955000000001746,
+          "frame_count": 494,
+          "deadline_misses": 8,
+          "max_deadline_lateness_sim_ms": 83.99999957327964,
+          "inference_wall_ms_mean": 36.05418482421603,
+          "inference_wall_ms_max": 216.02280900697224
+        }
+      },
+      "success_recomputed": true
+    },
+    {
+      "seed": 45,
+      "source": "data/inference_tests/infer_1793720001162385685",
+      "completed": false,
+      "result": {
+        "success": false,
+        "fps": 20,
+        "error": "Missing/stale joint states",
+        "mode": "infer",
+        "policy": {
+          "model_path": "checkpoints/pickup_act_5000_elapsed",
+          "torch_num_threads": 2,
+          "model_sha256": "0149a287e2cf0a380341a881ac5df7f194bfde61cc1d5dadcd4b89bdfa52da66",
+          "requested_seconds_sim": 25.0,
+          "target_fps": 20,
+          "saved_n_action_steps": 1,
+          "n_action_steps": 1,
+          "chunk_size": 16,
+          "include_elapsed_time": true,
+          "elapsed_time_basis": "sim_seconds_since_first_policy_observation",
+          "queued_action_duration_sim_seconds": 0.05,
+          "timing_policy": "bounded_isolated_overruns",
+          "timing_tolerance_sim_seconds": 0.015,
+          "max_lateness_sim_seconds": 0.1,
+          "max_consecutive_misses": 3
+        },
+        "timing": {
+          "observed_fps": 19.99581239531817,
+          "recorded_duration_sim_seconds": 9.551999999996042,
+          "frame_count": 192,
+          "deadline_misses": 1,
+          "max_deadline_lateness_sim_ms": 53.999999436200596,
+          "inference_wall_ms_mean": 28.472944739254064,
+          "inference_wall_ms_max": 285.15584400156513
+        }
+      }
+    }
+  ],
+  "unattempted_seeds": [
+    42,
+    44
+  ],
+  "monitoring": "paused_after_joint_state_staleness"
+}

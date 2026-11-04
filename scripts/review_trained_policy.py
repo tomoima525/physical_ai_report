@@ -38,7 +38,13 @@ def main():
         source=Path(entry['source_episode'])
         raw=(source/'frames.jsonl').read_bytes()
         assert hashlib.sha256(raw).hexdigest()==entry['frames_sha256']
-        frames[entry['dataset_episode_index']]=[json.loads(line) for line in raw.splitlines()]
+        rows=[json.loads(line) for line in raw.splitlines()]
+        if manifest.get('include_elapsed_time',False):
+            from pickup.inference import environment_with_elapsed
+            for row in rows:
+                row['observation.environment_state']=environment_with_elapsed(
+                    row['observation.environment_state'],row['timestamp']-rows[0]['timestamp'])
+        frames[entry['dataset_episode_index']]=rows
     train=[f for ep in split['train_episodes'] for f in frames[ep]]
     val=[f for ep in split['validation_episodes'] for f in frames[ep]]
     mean=np.asarray([f['action'] for f in train],dtype=np.float64).mean(axis=0)
@@ -92,7 +98,7 @@ def main():
     report={'checkpoint':str(checkpoint),'model_sha256':hashlib.sha256((checkpoint/'model.safetensors').read_bytes()).hexdigest(),
         'completed_steps':summary['completed_steps'],'train_episodes':split['train_episodes'],
         'validation_episodes':split['validation_episodes'],'train_frames':len(train),'validation_frames':len(val),
-        'environment_normalized':environment_normalized,'normalization_matches_train_only_stats':True,'checkpoint_parameters_finite':True,
+        'include_elapsed_time':manifest.get('include_elapsed_time',False),'environment_normalized':environment_normalized,'normalization_matches_train_only_stats':True,'checkpoint_parameters_finite':True,
         'validation_before_mae_rad':metrics[0]['validation_first_action_mae_rad'],'validation_after':final,
         'logged_metric_matches_recomputed':True,'current_joint_baseline':errors(state),
         'train_mean_action_baseline':errors(np.broadcast_to(mean,target.shape)),

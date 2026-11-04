@@ -1,0 +1,28 @@
+{
+  "source": "data/inference_tests/infer_1793686841265257362",
+  "success_recomputed": false,
+  "max_lift_m": 0.004545563343834491,
+  "final_action": [
+    0.01545730885118246,
+    -0.48510584235191345,
+    -2.1097848415374756,
+    -1.229221224784851,
+    0.2928972840309143
+  ],
+  "final_state": [
+    0.01981332002915066,
+    -0.4844174567832592,
+    -2.1088210800416514,
+    -1.228911620162506,
+    0.2233464497038495
+  ],
+  "timing": {
+    "observed_fps": 19.821407119690743,
+    "recorded_duration_sim_seconds": 24.972999999998137,
+    "frame_count": 496,
+    "deadline_misses": 7,
+    "max_deadline_lateness_sim_ms": 66.0000000425498,
+    "inference_wall_ms_mean": 37.842086782274556,
+    "inference_wall_ms_max": 195.78382599866018
+  }
+}

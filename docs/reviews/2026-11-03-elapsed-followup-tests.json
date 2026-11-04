@@ -1,0 +1,89 @@
+{
+  "model_sha256": "0149a287e2cf0a380341a881ac5df7f194bfde61cc1d5dadcd4b89bdfa52da66",
+  "completed_tests": [
+    {
+      "seed": 42,
+      "source": "data/inference_tests/infer_1793721537645542845",
+      "success_recomputed": true,
+      "max_lift_m": 0.04746522170286038,
+      "final_window_min_lift_m": 0.047011311373676756,
+      "callback_refresh_enabled": true,
+      "max_pre_publish_joint_age_wall_ms": 190.0971529976232,
+      "observation_refresh_recoveries": 0,
+      "timing": {
+        "observed_fps": 19.97678049561683,
+        "recorded_duration_sim_seconds": 24.97899999999936,
+        "frame_count": 500,
+        "deadline_misses": 1,
+        "max_deadline_lateness_sim_ms": 23.999998600629624,
+        "inference_wall_ms_mean": 33.81128948612604,
+        "inference_wall_ms_max": 181.80292499891948
+      }
+    },
+    {
+      "seed": 43,
+      "source": "data/inference_tests/infer_1793719866491540756",
+      "success_recomputed": true,
+      "max_lift_m": 0.04793966983774056,
+      "final_window_min_lift_m": 0.04759310116024551,
+      "callback_refresh_enabled": false,
+      "max_pre_publish_joint_age_wall_ms": null,
+      "observation_refresh_recoveries": 0,
+      "timing": {
+        "observed_fps": 19.755560008013042,
+        "recorded_duration_sim_seconds": 24.955000000001746,
+        "frame_count": 494,
+        "deadline_misses": 8,
+        "max_deadline_lateness_sim_ms": 83.99999957327964,
+        "inference_wall_ms_mean": 36.05418482421603,
+        "inference_wall_ms_max": 216.02280900697224
+      }
+    },
+    {
+      "seed": 44,
+      "source": "data/inference_tests/infer_1793721647525314528",
+      "success_recomputed": true,
+      "max_lift_m": 0.048379683382615335,
+      "final_window_min_lift_m": 0.047611450273513656,
+      "callback_refresh_enabled": true,
+      "max_pre_publish_joint_age_wall_ms": 171.11768999893684,
+      "observation_refresh_recoveries": 0,
+      "timing": {
+        "observed_fps": 19.869406721951588,
+        "recorded_duration_sim_seconds": 24.9629999999961,
+        "frame_count": 497,
+        "deadline_misses": 5,
+        "max_deadline_lateness_sim_ms": 79.99999997991836,
+        "inference_wall_ms_mean": 35.13911499186715,
+        "inference_wall_ms_max": 174.31729499367066
+      }
+    },
+    {
+      "seed": 45,
+      "source": "data/inference_tests/infer_1793721408155693056",
+      "success_recomputed": true,
+      "max_lift_m": 0.04848730485893116,
+      "final_window_min_lift_m": 0.047671667447305,
+      "callback_refresh_enabled": true,
+      "max_pre_publish_joint_age_wall_ms": 228.37952901318204,
+      "observation_refresh_recoveries": 0,
+      "timing": {
+        "observed_fps": 19.99759547950039,
+        "recorded_duration_sim_seconds": 24.95300000000134,
+        "frame_count": 500,
+        "deadline_misses": 0,
+        "max_deadline_lateness_sim_ms": 14.999999817518983,
+        "inference_wall_ms_mean": 33.870554290217115,
+        "inference_wall_ms_max": 249.0997839922784
+      }
+    }
+  ],
+  "prior_aborted_trial": "data/inference_tests/infer_1793720001162385685",
+  "prior_abort_error": "Missing/stale joint states",
+  "limitations": [
+    "One completed trial per configuration; no general success rate established.",
+    "Seed43 used pre-refresh code; seeds45/42/44 used refreshed callback handling.",
+    "Prior aborted seed45 is retained and reported separately.",
+    "Elapsed-time-conditioned policy; grasp confirmation is not a stage transition input."
+  ]
+}

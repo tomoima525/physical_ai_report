@@ -44,6 +44,10 @@ def select_episodes(root, excluded=()):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--episodes', default='data/episodes')
+    parser.add_argument('--include-elapsed-time',action='store_true',
+        help='Append raw simulation seconds since episode first frame to environment input')
+    parser.add_argument('--additional-episodes',action='append',default=[],
+        help='Additional raw episode directory; repeat to combine sources')
     parser.add_argument('--output', default='data/lerobot/pickup')
     parser.add_argument('--exclude-episode', action='append', default=[],
         help='Exact episode directory name to exclude; may be repeated')
@@ -51,7 +55,17 @@ def main():
         help='Validate selected raw episodes without creating a dataset or importing ML libraries')
     args = parser.parse_args()
     # Fail on any unreviewed invalid episode; exclusions must be explicit.
-    selected = select_episodes(args.episodes, args.exclude_episode)
+    roots=[args.episodes,*args.additional_episodes]
+    names=[p.parent.name for root in roots for p in Path(root).glob('*/result.json')]
+    if len(names)!=len(set(names)):
+        raise ValueError('Duplicate episode names across source directories')
+    unknown=set(args.exclude_episode)-set(names)
+    if unknown:
+        raise ValueError(f'Excluded episode not found: {sorted(unknown)}')
+    selected=[]
+    for root in roots:
+        local_names={p.parent.name for p in Path(root).glob('*/result.json')}
+        selected.extend(select_episodes(root,set(args.exclude_episode)&local_names))
     frame_count = sum(len(frames) for _, frames in selected)
     print(f'Selected {len(selected)} episodes, {frame_count} frames; excluded: {args.exclude_episode}')
     if args.validate_only:
@@ -62,15 +76,25 @@ def main():
     from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
     from configs.crane_features import features
     import numpy as np
+    if args.include_elapsed_time:
+        from configs.crane_features_elapsed import features
+    from pickup.inference import environment_with_elapsed
     dataset = LeRobotDataset.create(repo_id='crane_plus_pickup', fps=FPS,
         root=Path(args.output).resolve(), robot_type='crane_plus', features=features, use_videos=False)
     for source_path, episode in selected:
         for row in episode:
-            dataset.add_frame({**{k: np.asarray(row[k], dtype=np.float32) for k in features},
+            values={k:row[k] for k in features}
+            if args.include_elapsed_time:
+                values['observation.environment_state']=environment_with_elapsed(
+                    row['observation.environment_state'],row['timestamp']-episode[0]['timestamp'])
+            dataset.add_frame({**{k: np.asarray(values[k], dtype=np.float32) for k in features},
                                'task': 'Lift the cube by 4 cm and hold for 1 second'})
         dataset.save_episode()
     manifest = {
         'source_root': str(Path(args.episodes)),
+        'additional_source_roots':args.additional_episodes,
+        'include_elapsed_time':args.include_elapsed_time,
+        'elapsed_time_basis':'raw_sim_timestamp_minus_first_frame' if args.include_elapsed_time else None,
         'excluded_episode_names': args.exclude_episode,
         'fps': FPS, 'total_frames': frame_count,
         'episodes': [{'dataset_episode_index': i, 'source_episode': str(path), 'frame_count': len(frames),
